@@ -296,3 +296,158 @@ While nations like <span style="color: pink; font-weight: bold;">Iceland and Sin
   </h2>
 </div>
 
+
+<div>
+  Global Demographic Trends: Birth Rate & Population Growth Over Time  
+</div>
+
+```{python}
+#| echo: false
+import pandas as pd
+import plotly.graph_objects as go
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+
+demo_br = df.groupby('year')['birth_rate'].mean().reset_index()
+
+#  – total population (to compute growth %)
+demo_pop = df.groupby('year')['population'].sum().reset_index()
+
+#  – merge and compute population growth rate
+demo = pd.merge(demo_br, demo_pop, on='year')
+demo['pop_growth_pct'] = demo['population'].pct_change() * 100
+
+# 3. Build dual-axis figure
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=demo['year'], y=demo['birth_rate'],
+    mode='lines+markers',
+    name='Birth Rate',
+    marker=dict(size=8),
+    hovertemplate='Year %{x}<br>Birth Rate %{y:.1f} per 1,000<extra></extra>'
+))
+
+# 3b. Population Growth trace (right axis)
+fig.add_trace(go.Scatter(
+    x=demo['year'], y=demo['pop_growth_pct'],
+    mode='lines+markers',
+    name='Population Growth',
+    marker=dict(symbol='diamond', size=8),
+    line=dict(dash='dash'),
+    yaxis='y2',
+    hovertemplate='Year %{x}<br>Growth %{y:.2f}%<extra></extra>'
+))
+
+# 4. Layout & styling
+fig.update_layout(
+    title='Global Demographic Trends: Birth Rate & Population Growth Over Time',
+    template='plotly_white',
+    xaxis=dict(
+        title='Year',
+        tickmode='linear',
+        rangeselector=dict(buttons=[
+            dict(count=5, label='5Y', step='year', stepmode='backward'),
+            dict(count=10, label='10Y', step='year', stepmode='backward'),
+            dict(step='all')
+        ]),
+        rangeslider=dict(visible=True)
+    ),
+    yaxis=dict(
+        title='Birth Rate (per 1,000 people)',
+        gridcolor='LightGrey'
+    ),
+    yaxis2=dict(
+        title='Population Growth (%)',
+        overlaying='y',
+        side='right',
+        gridcolor='LightGrey'
+    ),
+    legend=dict(
+        orientation='h',
+        y=1.02,
+        x=1,
+        xanchor='right'
+    ),
+    margin=dict(l=60, r=60, t=80, b=60)
+)
+
+fig.show()
+
+```
+
+<div>
+    Child Mortality, GDO & Heath Access (2015)
+</div>
+
+```{python}
+#| echo: false
+
+import pandas as pd
+import plotly.express as px
+
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+
+# 2. Merge in region (continent) info from Plotly’s gapminder
+gap = px.data.gapminder()[['country','continent']].drop_duplicates()
+gap = gap.rename(columns={'continent':'region'})
+df = df.merge(gap, on='country', how='left')
+
+# 3. Find the year with the most non‐null hospital_beds
+hb_year = (
+    df.dropna(subset=['hospital_beds'])
+      .year
+      .value_counts()
+      .idxmax()
+)
+print(f"Using year {hb_year} for best hospital_beds coverage.")
+
+# 4. Filter to that year and drop any rows missing our three metrics
+df_snap = (
+    df[df['year'] == hb_year]
+      .dropna(subset=['gdp_per_capita','infant_mortality','hospital_beds'])
+)
+
+# 5. Build the bubble chart
+fig = px.scatter(
+    df_snap,
+    x='gdp_per_capita',
+    y='infant_mortality',
+    size='hospital_beds',           # health access
+    color='region',
+    hover_name='country',
+    hover_data={
+        'gdp_per_capita':':.0f',
+        'infant_mortality':':.1f',
+        'hospital_beds':':.2f'
+    },
+    size_max=40,
+    title=f'Child Mortality, GDP & Health Access ({hb_year})',
+    labels={
+        'gdp_per_capita':'GDP per Capita (constant 2015 US$)',
+        'infant_mortality':'Infant Mortality (per 1,000)',
+        'hospital_beds':'Hospital Beds per 1,000',
+        'region':'Region'
+    },
+    template='plotly_white'
+)
+
+# 6. Use log scale on X to spread out GDP differences
+fig.update_xaxes(type='log')
+
+# 7. Polish markers & layout
+fig.update_traces(
+    marker=dict(line=dict(width=1, color='DarkSlateGrey'), opacity=0.8)
+)
+fig.update_layout(
+    xaxis=dict(gridcolor='LightGrey'),
+    yaxis=dict(gridcolor='LightGrey'),
+    legend=dict(orientation='h', y=1.02, x=1, xanchor='right'),
+    title_font_size=18,
+    margin=dict(l=50, r=50, t=80, b=50)
+)
+
+fig.show()
+
+```
