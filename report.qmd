@@ -1,0 +1,212 @@
+---
+title: "Global Health Insights: Hib Coverage & Demographics"
+  author: "Kadambari Narayan"
+date: "2025-04-27"
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+    theme: cosmo
+---
+
+# Introduction
+
+In this report, we explore key global health indicators centered on *Hib vaccine coverage* and its relationship with *infant mortality*, *population dynamics*, *defense spending*, and *economic factors*. Through a series of interactive visualizations, we will:
+
+- Map geographic distribution of Hib coverage (Visuals 1 & 2)
+- Identify clustering patterns between vaccine uptake and mortality (Visuals 3 & 6)
+- Highlight countries with the highest and lowest infant mortality (Visuals 4 & 5)
+- Track temporal trends in both immunization and demographics (Visuals 7 & 9)
+- Examine associations with military expenditure and GDP (Visuals 8 & 10)
+
+---
+
+```{python}
+#| label: setup
+#| echo: false
+!pip install pandas plotly openpyxl scikit-learn
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from sklearn.cluster import KMeans
+
+df = pd.read_excel("cleaned_unicef_data.xlsx")
+```
+
+## 1. Rotating Globe of Hib 3rd-Dose Coverage (2019)
+```{python}
+#| label: visual1
+#| fig-cap: "Rotating Globe: Hib 3rd-Dose Coverage (2019)"
+# Filter to 2019
+data = (
+    df[df.year == 2019]
+      .loc[:, ["country", "hib_vaccine_coverage"]]
+      .rename(columns={"hib_vaccine_coverage": "z"})
+)
+
+# Build globe
+fig = go.Figure(
+    data=go.Choropleth(
+        locations=data.country,
+        z=data.z,
+        locationmode="country names",
+        colorscale="Viridis",
+        marker_line_color="white",
+        colorbar_title="Coverage (%)"
+    ),
+    frames=[
+        go.Frame(layout=dict(geo=dict(projection_rotation=dict(lon=lon, lat=0))), name=str(lon))
+        for lon in range(0, 360, 20)
+    ]
+)
+fig.update_layout(
+    title_text="Rotating Globe: Hib 3rd-Dose Coverage (2019)",
+    geo=dict(projection=dict(type="orthographic"), showland=True, landcolor="lightgray", showcountries=True, countrycolor="white", showocean=True, oceancolor="lightblue"),
+    updatemenus=[dict(type="buttons", showactive=False, buttons=[dict(label="▶ Play", method="animate", args=[None,{"frame": {"duration":100,"redraw":True},"fromcurrent":True,"transition":{"duration":0}}])], x=0.1, y=0.1)]
+)
+fig.show()
+```
+
+## 2. Choropleth Animation: Hib Coverage Over Time
+```{python}
+#| label: visual2
+#| fig-cap: "Hib Vaccine Coverage by Country Over Time"
+fig = px.choropleth(
+    df,
+    locations='country', locationmode='country names',
+    color='hib_vaccine_coverage', hover_name='country',
+    hover_data={'infant_mortality':True},
+    animation_frame='year', color_continuous_scale='Blues',
+    title='Hib Vaccine Coverage by Country Over Time',
+    labels={'hib_vaccine_coverage':'Hib Vaccine (%)'}
+)
+fig.update_layout(geo=dict(showcoastlines=True, projection_type='equirectangular'), margin={'r':0,'t':50,'l':0,'b':0})
+fig.show()
+```
+
+## 3. Clusters: Hib Coverage vs Infant Mortality (2020)
+```{python}
+#| label: visual3
+#| fig-cap: "Clusters of Hib Coverage vs Infant Mortality (2020)"
+snapshot_year = 2020
+df_snap = df[df.year == snapshot_year].dropna(subset=['hib_vaccine_coverage','infant_mortality'])
+
+X = df_snap[['hib_vaccine_coverage','infant_mortality']]
+kmeans = KMeans(n_clusters=3, random_state=0).fit(X)
+df_snap['cluster'] = kmeans.labels_
+
+fig = px.scatter(
+    df_snap, x='hib_vaccine_coverage', y='infant_mortality', color='cluster', hover_name='country', trendline='ols',
+    title=f'Hib Vaccine vs Infant Mortality Clusters ({snapshot_year})',
+    labels={'hib_vaccine_coverage':'Hib Vaccine (%)','infant_mortality':'Deaths per 1,000 infants'}
+)
+fig.show()
+```
+
+## 4. Top 10 Countries by Infant Mortality
+```{python}
+#| label: visual4
+#| fig-cap: "Top 10 Countries by Infant Mortality"
+latest_year = df.year.max()
+bar_df = df[df.year == latest_year].dropna(subset=['infant_mortality'])
+top10 = bar_df.nlargest(10, 'infant_mortality')
+
+fig_bar = px.bar(
+    top10, x='infant_mortality', y='country', orientation='h', color='country',
+    color_discrete_sequence=px.colors.qualitative.Plotly,
+    title=f'Top 10 Countries by Infant Mortality ({latest_year})',
+    labels={'infant_mortality':'Deaths per 1,000 infants','country':''}
+)
+fig_bar.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
+fig_bar.show()
+```
+
+## 5. Bottom 10 Countries by Infant Mortality
+```{python}
+#| label: visual5
+#| fig-cap: "10 Countries with Lowest Infant Mortality"
+bottom10 = bar_df.nsmallest(10, 'infant_mortality')
+fig_bottom = px.bar(
+    bottom10, x='infant_mortality', y='country', orientation='h', color='country',
+    color_discrete_sequence=px.colors.qualitative.Dark24,
+    title=f'10 Countries with Lowest Infant Mortality ({latest_year})',
+    labels={'infant_mortality':'Deaths per 1,000 infants','country':''}
+)
+fig_bottom.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False, margin=dict(l=50,r=30,t=50,b=30))
+fig_bottom.show()
+```
+
+## 6. Scatter: Hib Coverage vs Infant Mortality (Latest Year)
+```{python}
+#| label: visual6
+#| fig-cap: "Hib Coverage vs Infant Mortality Scatter"
+sc_df = df[df.year == latest_year].dropna(subset=['hib_vaccine_coverage','infant_mortality'])
+fig_scatter = px.scatter(
+    sc_df, x='hib_vaccine_coverage', y='infant_mortality', hover_name='country', trendline='ols',
+    title=f'Hib Coverage vs Infant Mortality ({latest_year})',
+    labels={'hib_vaccine_coverage':'Hib Vaccine (%)','infant_mortality':'Deaths per 1,000 infants'}
+)
+fig_scatter.show()
+```
+
+## 7. Time-Series: Global Average Hib Coverage
+```{python}
+#| label: visual7
+#| fig-cap: "Global Average Hib Coverage Over Time"
+ts = df.groupby('year')['hib_vaccine_coverage'].mean().reset_index()
+fig_ts = px.line(ts, x='year', y='hib_vaccine_coverage', title='Global Average Hib Vaccine Coverage Over Time', labels={'hib_vaccine_coverage':'Avg Hib Vaccine (%)'})
+fig_ts.update_traces(mode='markers+lines')
+fig_ts.show()
+```
+
+## 8. Clusters: Military Expenditure vs Infant Mortality
+```{python}
+#| label: visual8
+#| fig-cap: "Defense Spending vs Infant Mortality Clusters"
+gap = px.data.gapminder()[['country','continent']].drop_duplicates().rename(columns={'continent':'region'})
+df = df.merge(gap, on='country', how='left')
+df_mil = df[df.year == latest_year].dropna(subset=['military_expenditure','infant_mortality','population'])
+kmeans = KMeans(n_clusters=4, random_state=42)
+df_mil['cluster'] = kmeans.fit_predict(df_mil[['military_expenditure','infant_mortality']]).astype(str)
+med_x, med_y = df_mil['military_expenditure'].median(), df_mil['infant_mortality'].median()
+fig = px.scatter(df_mil, x='military_expenditure', y='infant_mortality', color='cluster', size='population', size_max=45, hover_name='country', trendline='ols', title=f'High Defense vs. High Mortality ({latest_year})', labels={'military_expenditure':'Military Expenditure (% GDP)','infant_mortality':'Infant Mortality (per 1,000)','cluster':'Cluster'}, template='plotly_white')
+fig.add_shape(type='line', x0=med_x, x1=med_x, y0=df_mil['infant_mortality'].min(), y1=df_mil['infant_mortality'].max(), line=dict(dash='dash', color='grey'))
+fig.add_shape(type='line', y0=med_y, y1=med_y, x0=df_mil['military_expenditure'].min(), x1=df_mil['military_expenditure'].max(), line=dict(dash='dash', color='grey'))
+fig.update_traces(marker=dict(opacity=0.8, line=dict(width=1, color='DarkSlateGrey')))
+fig.update_layout(legend=dict(title='Cluster', orientation='h', y=1.02, x=1, xanchor='right'), xaxis=dict(title='Military Expenditure (% GDP)', gridcolor='LightGrey'), yaxis=dict(title='Infant Mortality (per 1,000)', gridcolor='LightGrey'), title_font_size=18, margin=dict(l=50,r=50,t=80,b=50))
+fig.show()
+```
+
+## 9. Dual-Axis: Birth Rate & Population Growth
+```{python}
+#| label: visual9
+#| fig-cap: "Birth Rate & Population Growth Over Time"
+demo_br = df.groupby('year')['birth_rate'].mean().reset_index()
+demo_pop = df.groupby('year')['population'].sum().reset_index()
+demo = pd.merge(demo_br, demo_pop, on='year')
+demo['pop_growth_pct'] = demo['population'].pct_change() * 100
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=demo.year, y=demo.birth_rate, mode='lines+markers', name='Birth Rate', hovertemplate='Year %{x}<br>Birth Rate %{y:.1f}<extra></extra>'))
+fig.add_trace(go.Scatter(x=demo.year, y=demo.pop_growth_pct, mode='lines+markers', name='Population Growth', marker=dict(symbol='diamond',size=8), line=dict(dash='dash'), yaxis='y2', hovertemplate='Year %{x}<br>Growth %{y:.2f}%<extra></extra>'))
+fig.update_layout(title='Global Demographic Trends: Birth Rate & Population Growth Over Time', template='plotly_white', xaxis=dict(title='Year', tickmode='linear', rangeselector=dict(buttons=[dict(count=5,label='5Y',step='year',stepmode='backward'),dict(count=10,label='10Y',step='year',stepmode='backward'),dict(step='all')]), rangeslider=dict(visible=True)), yaxis=dict(title='Birth Rate (per 1,000 people)', gridcolor='LightGrey'), yaxis2=dict(title='Population Growth (%)', overlaying='y', side='right', gridcolor='LightGrey'), legend=dict(orientation='h', y=1.02, x=1, xanchor='right'), margin=dict(l=60,r=60,t=80,b=60))
+fig.show()
+```
+
+## 10. Bubble Chart: GDP, Mortality & Health Access
+```{python}
+#| label: visual10
+#| fig-cap: "Child Mortality, GDP & Health Access"
+gap = px.data.gapminder()[['country','continent']].drop_duplicates().rename(columns={'continent':'region'})
+df = pd.read_excel('cleaned_unicef_data.xlsx').merge(gap, on='country', how='left')
+hb_year = df.dropna(subset=['hospital_beds']).year.value_counts().idxmax()
+df_snap = df[df.year == hb_year].dropna(subset=['gdp_per_capita','infant_mortality','hospital_beds'])
+fig = px.scatter(df_snap, x='gdp_per_capita', y='infant_mortality', size='hospital_beds', color='region', hover_name='country', size_max=40, title=f'Child Mortality, GDP & Health Access ({hb_year})', labels={'gdp_per_capita':'GDP per Capita (2015 US$)','infant_mortality':'Infant Mortality (per 1,000)','hospital_beds':'Hospital Beds per 1,000','region':'Region'}, template='plotly_white')
+fig.update_xaxes(type='log')
+fig.update_traces(marker=dict(line=dict(width=1,color='DarkSlateGrey'),opacity=0.8))
+fig.update_layout(xaxis=dict(gridcolor='LightGrey'), yaxis=dict(gridcolor='LightGrey'), legend=dict(orientation='h',y=1.02,x=1,xanchor='right'), title_font_size=18, margin=dict(l=50,r=50,t=80,b=50))
+fig.show()
+```
+
+---
+
+*End of Report.*
