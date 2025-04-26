@@ -377,7 +377,7 @@ fig.show()
 ```
 
 <div>
-    Child Mortality, GDO & Heath Access (2015)
+    Child Mortality, GDP & Heath Access (2015)
 </div>
 
 ```{python}
