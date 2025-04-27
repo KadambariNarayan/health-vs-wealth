@@ -1,0 +1,510 @@
+---
+title: Health Vs Wealth
+format:
+  html:
+    code-fold: true
+    code-tools: true
+    code-summary: "Click to view code"
+---
+
+# Health vs Wealth {style="color: red; font-size: 34pt; text-align: center;"}
+
+<p style="text-align: center; font-size: 10pt; color: #555; margin-top: 1em;">
+  Visualization by <strong>Kadambari Narayan</strong>
+</p>
+
+
+<p style="color: black; font-size: 14pt; text-align: center;">
+Economic growth shapes healthcare, yet 
+<span style="color: pink; font-weight: bold;">thousands</span> of 
+<span style="font-weight: bold; font-style: italic;">one-month infants</span> 
+<span style="color: pink; font-weight: bold;">die</span> everyday from preventable causes.
+</p>
+```{=html}
+<style>
+  body {
+    border: 3px solid black;
+    padding: 10px;
+  }
+</style>
+```
+
+
+![](images/health_worker_hib.jpg){fig-alt="Health worker administers Hib vaccine" width="70%"}
+
+<div style="background-color: #f5f5f5; padding:10px; border-radius:5px; margin-top:1em;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+**Protecting the future, one vaccine at a time:**  
+A health worker administers the <span style="font-style: italic; color: red;">Hib vaccine</span>, ensuring a healthier start for the next generation.
+</div>
+
+
+<h3>Map</h3>
+
+```{python}
+#| echo: false
+import pandas as pd
+import plotly.graph_objects as go
+
+# 2️⃣ Load your cleaned data
+df = pd.read_excel("cleaned_unicef_data.xlsx")
+
+# 3️⃣ Filter to 2019 Hib coverage
+data = (
+    df[df.year == 2019]
+    .loc[:, ["country", "hib_vaccine_coverage"]]
+    .rename(columns={"hib_vaccine_coverage": "z"})
+)
+
+# 4️⃣ Build the rotating globe figure
+fig = go.Figure(
+    data=go.Choropleth(
+        locations=data["country"],         # country names
+        z=data["z"],                       # Hib coverage %
+        locationmode="country names",      # use built-in country boundaries
+        colorscale="Viridis",
+        marker_line_color="white",
+        colorbar_title="Coverage (%)"
+    ),
+    frames=[
+        go.Frame(
+            layout=dict(
+                geo=dict(
+                    projection_rotation=dict(lon=lon, lat=0)
+                )
+            ),
+            name=str(lon)
+        )
+        for lon in range(0, 360, 20)
+    ]
+)
+
+# 5️⃣ Add camera, style & Play button
+fig.update_layout(
+    title_text="Rotating Globe: Hib 3rd-Dose Coverage (2019)",
+    geo=dict(
+        projection=dict(type="orthographic"),
+        showland=True,  landcolor="lightgray",
+        showcountries=True, countrycolor="white",
+        showocean=True, oceancolor="lightblue"
+    ),
+    updatemenus=[dict(
+        type="buttons", showactive=False,
+        buttons=[dict(
+            label="▶ Play",
+            method="animate",
+            args=[None, {
+                "frame": {"duration": 100, "redraw": True},
+                "fromcurrent": True,
+                "transition": {"duration": 0}
+            }]
+        )],
+        x=0.1, y=0.1
+    )]
+)
+
+# 6️⃣ Render it!
+fig.show()
+
+
+
+```
+
+
+<br>
+
+<div style="background-color: #f5f5f5; border: 2px solid purple; padding: 12px; border-radius: 4px;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+**What does this show?**<br>
+This rotating globe maps 2019 Hib 3rd-dose vaccine coverage worldwide, exposing stark regional gaps.<br>
+Globally, average coverage was **72%**, with several countries below **50%**, underscoring urgent immunization needs.
+</div>
+
+<br>
+
+![](images/hospital_beds_nepal.jpg){fig-alt="Overcrowded hospital ward in Kathmandu, Nepal" width="80%"}
+
+<div style="background-color: #f5f5f5; padding:10px; border-radius:5px; margin-top:1em;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+Each year, the scarcity of hospital beds contributes to the  
+<span style="color: red; font-style: italic; font-weight: bold;"> tragic loss of countless young lives
+</span>. In Nepal, where this image from Kathmandu depicts a strained healthcare system,  
+<span style="color: pink; font-weight: bold;"> approximately 27 out of every 1,000 children do not survive past their first birthday
+</span>  [Source: UNICEF, *State of the World's Children* 2024].
+</div>
+
+<h3>Scatter Plot</h3>
+
+```{python}
+#| echo: false
+import geopandas as gpd
+import pandas as pd
+import plotly.express as px
+import ipywidgets as widgets
+from IPython.display import display
+from sklearn.cluster import KMeans
+
+
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+
+world = gpd.read_file("ne_110m_admin_0_countries.shp")
+
+# Extract continent info (rename columns for merging)
+region_map = world[["NAME", "CONTINENT"]].rename(
+    columns={"NAME": "country", "CONTINENT": "region"}
+)
+
+# Merge region data into your DataFrame
+df = pd.merge(df, region_map, on="country", how="left")
+
+# Build list of regions
+regions = sorted(df['region'].dropna().unique())
+regions.insert(0, 'All')
+
+# Create dropdown widget
+region_dropdown = widgets.Dropdown(options=regions, description='Region:')
+
+# Callback to redraw the animated map per region
+def update_map(region):
+    sub = df if region == 'All' else df[df['region'] == region]
+    fig = px.choropleth(
+        sub,
+        locations='country',
+        locationmode='country names',
+        color='hib_vaccine_coverage',
+        hover_name='country',
+        hover_data={'infant_mortality': True},
+        animation_frame='year',
+        color_continuous_scale='Blues',
+        title=f'Hib Vaccine Coverage Over Time – {region}'
+    )
+    fig.update_geos(showcoastlines=True, projection_type='equirectangular')
+    fig.update_layout(margin={"r":0,"t":50,"l":0,"b":0})
+    fig.show()
+
+# Display the dropdown and initial map
+display(region_dropdown)
+widgets.interactive(update_map, region=region_dropdown)
+
+
+
+snapshot_year = 2020
+df_snap = df[df['year'] == snapshot_year].dropna(subset=['hib_vaccine_coverage','infant_mortality'])
+
+# 6.2 K-Means clustering
+X = df_snap[['hib_vaccine_coverage','infant_mortality']]
+kmeans = KMeans(n_clusters=3, random_state=0).fit(X)
+df_snap['cluster'] = kmeans.labels_
+
+# 6.3 Scatter with clusters + OLS trendline
+fig = px.scatter(
+    df_snap,
+    x='hib_vaccine_coverage',
+    y='infant_mortality',
+    color='cluster',
+    hover_name='country',
+    trendline='ols',
+    title=f'Hib Vaccine vs Infant Mortality Clusters ({snapshot_year})',
+    labels={
+        'hib_vaccine_coverage':'Hib Vaccine (%)',
+        'infant_mortality':'Deaths per 1,000 infants'
+    }
+)
+fig.show()
+
+```
+
+<br>
+
+<div style="background-color: #f5f5f5; border: 2px solid purple; padding: 12px; border-radius: 4px;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+**What can we learn?**<br>
+This interactive map animates Hib 3rd-dose coverage by region over time, exposing both impressive gains and enduring gaps across continents.<br>
+The 2020 cluster scatter confirms a strong inverse relationship: the highest-coverage group averages <strong>~88% vaccination</strong> and <strong>~20 infant deaths/1,000</strong>, versus <strong>~45% coverage</strong> and <strong>~60 deaths/1,000</strong> in the lowest-coverage group.
+</div>
+
+<br>
+
+![](images/bangladesh_newborn.jpg){fig-alt="New mother and newborn in UNICEF-supported facility in Bangladesh" width="80%"}
+
+<div style="background-color: #f5f5f5; padding:10px; border-radius:5px; margin-top:1em;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+A newborn joins a growing global population.  
+<span style="color: green; font-weight: bold;">In Bangladesh</span>, where the crude birth rate contributes significantly to population growth, the total population is projected to reach  
+<span style="color: blue; font-weight: bold; font-style: italic;">191.58 million by 2050</span>  
+[Source: United Nations, Department of Economic and Social Affairs, Population Division (2022)].
+</div>
+
+<h3>Top 10 Mortality</h3>
+
+```{python}
+#| echo: false
+import pandas as pd
+import plotly.express as px
+from IPython.display import display, HTML
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+latest_year = df['year'].max()
+bar_df = df[df['year'] == latest_year].dropna(subset=['infant_mortality'])
+mort_df = df[df['year'] == latest_year].dropna(subset=['infant_mortality'])
+
+# Select top 10
+top10 = bar_df.nlargest(10, 'infant_mortality')
+bottom10 = mort_df.nsmallest(10, 'infant_mortality')
+
+fig_bar = px.bar(
+    top10,
+    x='infant_mortality',
+    y='country',
+    orientation='h',
+    color='country',  # one color per country
+    color_discrete_sequence=px.colors.qualitative.Plotly,
+    title=f'Top 10 Countries by Infant Mortality ({latest_year})',
+    labels={'infant_mortality':'Deaths per 1,000 infants', 'country':''}
+)
+
+fig_bar.update_layout(
+    yaxis={'categoryorder':'total ascending'},
+    showlegend=False  # hide legend since country names are on the axis
+)
+
+fig_bar.show()
+
+
+display(HTML("<h3>Bottom 10 Mortality</h3>"))
+
+fig_bottom = px.bar(
+    bottom10,
+    x='infant_mortality',
+    y='country',
+    orientation='h',
+    color='country',
+    color_discrete_sequence=px.colors.qualitative.Dark24,
+    title=f'10 Countries with Lowest Infant Mortality ({latest_year})',
+    labels={'infant_mortality':'Deaths per 1,000 infants','country':''}
+)
+
+# 4. Sort ascending so lowest mortality is on top, hide legend
+fig_bottom.update_layout(
+    yaxis={'categoryorder':'total ascending'},
+    showlegend=False,
+    margin=dict(l=50, r=30, t=50, b=30)
+)
+
+fig_bottom.show()
+
+```
+
+<br>
+
+![](images/niger_children_collage.png){fig-alt="Children in Niger" width="80%"}
+
+<div style="background-color: #fff5e6; padding:10px; border-radius:5px; margin-top:1em;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+  <span style="color: darkred; font-weight: bold;">
+    210 children dying in Niger out of every 1,000
+  </span>  
+  – a statistic that numbs the soul, yet demands action.  
+  <em>
+    How many more newborns must perish before the world acknowledges its complicity 
+    in this preventable crisis, where so many futures are extinguished before they even begin?
+  </em>
+</div>
+
+<br>
+
+![](images/infant_bracelet.jpg){fig-alt="Close-up of newborn foot with hospital bracelet" width="80%"}
+
+<div style="background-color: #f5f5f5; padding:10px; border-radius:5px; margin-top:1em;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+While nations like <span style="color: pink; font-weight: bold;">Iceland and Singapore</span> report infant mortality rates as low as <span style="color: pink; font-weight: bold;">1.5 deaths per 1,000 live births</span>, showcasing the triumph of advanced healthcare systems, the disparity remains staggering. <strong>Why should geography decide whether a child lives or dies?</strong>
+</div>
+
+
+<h3>Global Demographic Trends: Birth Rate & Population Growth Over Time</h3>
+
+
+```{python}
+#| echo: false
+import pandas as pd
+import plotly.graph_objects as go
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+
+demo_br = df.groupby('year')['birth_rate'].mean().reset_index()
+
+#  – total population (to compute growth %)
+demo_pop = df.groupby('year')['population'].sum().reset_index()
+
+#  – merge and compute population growth rate
+demo = pd.merge(demo_br, demo_pop, on='year')
+demo['pop_growth_pct'] = demo['population'].pct_change() * 100
+
+# 3. Build dual-axis figure
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=demo['year'], y=demo['birth_rate'],
+    mode='lines+markers',
+    name='Birth Rate',
+    marker=dict(size=8),
+    hovertemplate='Year %{x}<br>Birth Rate %{y:.1f} per 1,000<extra></extra>'
+))
+
+# 3b. Population Growth trace (right axis)
+fig.add_trace(go.Scatter(
+    x=demo['year'], y=demo['pop_growth_pct'],
+    mode='lines+markers',
+    name='Population Growth',
+    marker=dict(symbol='diamond', size=8),
+    line=dict(dash='dash'),
+    yaxis='y2',
+    hovertemplate='Year %{x}<br>Growth %{y:.2f}%<extra></extra>'
+))
+
+# 4. Layout & styling
+fig.update_layout(
+    title='Global Demographic Trends: Birth Rate & Population Growth Over Time',
+    template='plotly_white',
+    xaxis=dict(
+        title='Year',
+        tickmode='linear',
+        rangeselector=dict(buttons=[
+            dict(count=5, label='5Y', step='year', stepmode='backward'),
+            dict(count=10, label='10Y', step='year', stepmode='backward'),
+            dict(step='all')
+        ]),
+        rangeslider=dict(visible=True)
+    ),
+    yaxis=dict(
+        title='Birth Rate (per 1,000 people)',
+        gridcolor='LightGrey'
+    ),
+    yaxis2=dict(
+        title='Population Growth (%)',
+        overlaying='y',
+        side='right',
+        gridcolor='LightGrey'
+    ),
+    legend=dict(
+        orientation='h',
+        y=1.02,
+        x=1,
+        xanchor='right'
+    ),
+    margin=dict(l=60, r=60, t=80, b=60)
+)
+
+fig.show()
+
+```
+
+<div style="background-color: #f5f5f5; border: 2px solid purple; padding: 12px; border-radius: 4px;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+<strong>What does this show?</strong><br>
+A dual-axis timeline of global birth rates versus annual population growth, revealing how falling birth rates have driven slower demographic expansion.<br>
+Birth rates declined from ~35 to ~18 births per 1,000 people, and population growth slipped from over 2% to under 1.2% by 2020.
+</div>
+
+<h3>Child Mortality, GDO & Heath Access (2015)</h3>
+    
+<br>
+
+```{python}
+#| echo: false
+
+import pandas as pd
+import plotly.express as px
+
+
+df = pd.read_excel('cleaned_unicef_data.xlsx')
+
+# 2. Merge in region (continent) info from Plotly’s gapminder
+gap = px.data.gapminder()[['country','continent']].drop_duplicates()
+gap = gap.rename(columns={'continent':'region'})
+df = df.merge(gap, on='country', how='left')
+
+# 3. Find the year with the most non‐null hospital_beds
+hb_year = (
+    df.dropna(subset=['hospital_beds'])
+      .year
+      .value_counts()
+      .idxmax()
+)
+print(f"Using year {hb_year} for best hospital_beds coverage.")
+
+# 4. Filter to that year and drop any rows missing our three metrics
+df_snap = (
+    df[df['year'] == hb_year]
+      .dropna(subset=['gdp_per_capita','infant_mortality','hospital_beds'])
+)
+
+# 5. Build the bubble chart
+fig = px.scatter(
+    df_snap,
+    x='gdp_per_capita',
+    y='infant_mortality',
+    size='hospital_beds',           # health access
+    color='region',
+    hover_name='country',
+    hover_data={
+        'gdp_per_capita':':.0f',
+        'infant_mortality':':.1f',
+        'hospital_beds':':.2f'
+    },
+    size_max=40,
+    title=f'Child Mortality, GDP & Health Access ({hb_year})',
+    labels={
+        'gdp_per_capita':'GDP per Capita (constant 2015 US$)',
+        'infant_mortality':'Infant Mortality (per 1,000)',
+        'hospital_beds':'Hospital Beds per 1,000',
+        'region':'Region'
+    },
+    template='plotly_white'
+)
+
+# 6. Use log scale on X to spread out GDP differences
+fig.update_xaxes(type='log')
+
+# 7. Polish markers & layout
+fig.update_traces(
+    marker=dict(line=dict(width=1, color='DarkSlateGrey'), opacity=0.8)
+)
+fig.update_layout(
+    xaxis=dict(gridcolor='LightGrey'),
+    yaxis=dict(gridcolor='LightGrey'),
+    legend=dict(orientation='h', y=1.02, x=1, xanchor='right'),
+    title_font_size=18,
+    margin=dict(l=50, r=50, t=80, b=50)
+)
+
+fig.show()
+
+```
+
+<br>
+
+<div style="background-color: #f5f5f5; border: 2px solid purple; padding: 12px; border-radius: 4px;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+<strong>What can we learn?</strong><br>
+A bubble plot for 2015 showing how GDP per capita, infant mortality, and hospital-bed availability cluster by region, spotlighting global health disparities.<br>
+High-income countries (GDP >$30 k) average <5 infant deaths/1 000 with 5+ beds per 1 000, versus low-income nations (<$5 k) with 40+ deaths and <1 bed per 1 000.
+</div>
+<br>
+<div style="background-color: #FFF4E5; padding: 16px; border-radius: 6px;">
+<p style="color: black; font-size: 14pt; text-align: center;">
+<em>
+In 2019, a remarkable 72% of children worldwide received their 3rd‐dose Hib vaccine—but in the poorest nations, fewer than half were protected, fueling infant‐mortality rates that rocket past 60 per 1 000 compared to under 20 per 1 000 in high‐coverage countries.  
+<br>
+Today’s stark health‐wealth chasm is laid bare: wealthy societies (GDP > $30 000) boast over 5 hospital beds per 1 000 people and keep infant deaths below 5 per 1 000, while low‐income communities (GDP < $5 000) struggle with under 1 bed per 1 000 and mortality climbing above 40 per 1 000.  
+<br>
+Although global birth rates have plunged from ~35 to ~18 per 1 000—slowing population growth from over 2% to under 1.2%—without bold investment in immunization and health infrastructure, the world’s poorest children will remain trapped at the mercy of preventable tragedy.
+</em>
+</div>
+
+<div style="background-color: #fff5e6; padding: 1em; border-radius: 5px; margin-top: 2em;">
+  <h2 style="color: #d81b60; margin: 0;">
+    Born Unequal: Where You’re Born Dictates If You Live?
+  </h2>
+</div>
